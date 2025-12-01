@@ -1,137 +1,143 @@
-import pyodbc
-from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QTableWidget,QTableWidgetItem)
+import requests
+import json
+import os
+from datetime import datetime
+from PyQt5.QtWidgets import (QWidget, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem, QMessageBox)
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
+
+# Clase base abstracta para la gestión de entidades CRUD.
+# Implementa la lógica de comunicación con la API REST y el manejo de errores de red.
 class CrudPadre(QWidget):
+    # Señal para notificar al controlador la solicitud de cambio de vista
+    senal_volver = pyqtSignal()
+
     def __init__(self, table_name):
         super().__init__()
-        self.table_name = table_name
-        self.setWindowTitle(f"CRUD de {self.table_name}")
+        self.table_name = table_name  # Identificador de la entidad (Tabla)
+        self.setWindowTitle(f"Gestión de {self.table_name}")
         self.setGeometry(200, 200, 600, 400)
 
-        self.conexion = pyodbc.connect(
-            'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DAVID\\DAVID;'
-            'DATABASE=Tienda;'
-            "UID=sa;"
-            "PWD=sqlSA%;"
-            'Trusted_Connection=yes;'
-        )
-        self.cursor = self.conexion.cursor()
+        # Configuración del endpoint remoto (Ngrok)
+        self.base_url = "https://059dfecdc33f.ngrok-free.app/api"
 
         self.initUI()
         self.loadData()
 
-    # ------------------------
-    # INTERFAZ GRAFICA
-    # ------------------------
     def initUI(self):
-
-        # ----- LABEL TITULO -----
-        self.lblTitulo = QLabel("Tienda", self)
+        # Construcción dinámica de la interfaz de usuario
+        self.lblTitulo = QLabel("Sistema de Inventario", self)
         self.lblTitulo.setFont(QFont("Arial", 14))
         self.lblTitulo.setAlignment(Qt.AlignCenter)
         self.lblTitulo.setGeometry(200, 10, 200, 40)
 
-        # ----- TABLA -----
         self.tabla = QTableWidget(self)
-        self.tabla.setColumnCount(2)
-        self.tabla.setHorizontalHeaderLabels(["Nombre", "Precio"])
+        self.tabla.setColumnCount(3)
+        self.tabla.setHorizontalHeaderLabels(["ID", "Nombre", "Precio"])
         self.tabla.setGeometry(20, 60, 350, 300)
 
-        # ----- ENTRADA NOMBRE -----
+        # Campos de entrada
         self.lblNombre = QLabel("Nombre:", self)
         self.lblNombre.setGeometry(400, 80, 150, 30)
-
         self.txtNombre = QLineEdit(self)
         self.txtNombre.setGeometry(400, 110, 150, 30)
 
-        # ----- ENTRADA PRECIO -----
         self.lblPrecio = QLabel("Precio:", self)
         self.lblPrecio.setGeometry(400, 150, 150, 30)
-
         self.txtPrecio = QLineEdit(self)
         self.txtPrecio.setGeometry(400, 180, 150, 30)
 
-        # ----- BOTON AGREGAR -----
+        # Botones de acción CRUD
         self.btnAgregar = QPushButton("Agregar", self)
         self.btnAgregar.setGeometry(400, 230, 150, 35)
         self.btnAgregar.clicked.connect(self.agregar)
 
-        # ----- BOTON ACTUALIZAR -----
         self.btnActualizar = QPushButton("Actualizar", self)
         self.btnActualizar.setGeometry(400, 275, 150, 35)
         self.btnActualizar.clicked.connect(self.actualizar)
 
-        # ----- BOTON ELIMINAR -----
         self.btnEliminar = QPushButton("Eliminar", self)
         self.btnEliminar.setGeometry(400, 320, 150, 35)
         self.btnEliminar.clicked.connect(self.eliminar)
 
-    # ------------------------------------------
-    # MÉTODOS POLIMÓRFICOS PARA REDEFINIR EN HIJOS
-    # ------------------------------------------
+        self.btnVolver = QPushButton("Volver al Menú", self)
+        self.btnVolver.setGeometry(20, 10, 120, 30)
+        self.btnVolver.clicked.connect(self.emitir_volver)
 
+    def emitir_volver(self):
+        self.senal_volver.emit()
+        self.close()
+
+    # Recuperación de datos mediante petición HTTP GET
     def loadData(self):
-        query = f"SELECT id, nombre, precio FROM {self.table_name}"
-        self.cursor.execute(query)
-        datos = self.cursor.fetchall()
+        url = f"{self.base_url}/{self.table_name}"
+        try:
+            # Timeout configurado para evitar congelamiento de UI en redes inestables
+            response = requests.get(url, timeout=1)
+            if response.status_code == 200:
+                datos = response.json()
+                self.tabla.setRowCount(len(datos))
+                # Poblado de la tabla visual con datos remotos
+                for row, item in enumerate(datos):
+                    self.tabla.setItem(row, 0, QTableWidgetItem(str(item["id"])))
+                    self.tabla.setItem(row, 1, QTableWidgetItem(item["nombre"]))
+                    self.tabla.setItem(row, 2, QTableWidgetItem(str(item["precio"])))
+        except Exception:
+            # Manejo silencioso de error de conexión para no interrumpir el flujo
+            pass
 
-        self.tabla.setRowCount(len(datos))
-        self.tabla.setColumnCount(3)
-        self.tabla.setHorizontalHeaderLabels(["ID", "Nombre", "Precio"])
-
-        for row, item in enumerate(datos):
-            self.tabla.setItem(row, 0, QTableWidgetItem(str(item[0])))
-            self.tabla.setItem(row, 1, QTableWidgetItem(item[1]))
-            self.tabla.setItem(row, 2, QTableWidgetItem(str(item[2])))
-        """
-        Este método se sobrescribe en la clase hija.
-        Se utiliza para cargar los datos desde la BD.
-        """
-        pass
-
+    # Creación de registros mediante HTTP POST
     def agregar(self):
-        nombre = self.txt_nombre.text()
-        precio = self.txt_precio.text()
+        nombre = self.txtNombre.text()
+        precio = self.txtPrecio.text()
+        if not nombre or not precio: return
 
-        query = f"INSERT INTO {self.table_name}(nombre, precio) VALUES(?, ?)"
-        self.cursor.execute(query, (nombre, precio))
-        self.conexion.commit()
+        datos = {"nombre": nombre, "precio": float(precio), "stock": 0}
+        endpoint = self.table_name
 
-        self.load_data()
-        """
-        Insertar en la BD.
-        Se sobrescribe en la clase hija.
-        """
-        print("Agregar (padre): redefinir en la clase hija.")
+        try:
+            r = requests.post(f"{self.base_url}/{endpoint}", json=datos, timeout=2)
+            if r.status_code == 200: self.loadData()
+        except:
+            # Fallback a modo offline en caso de error de red
+            self.guardar_offline(endpoint, "POST", datos)
+            QMessageBox.information(self, "Offline", "Operación guardada localmente.")
 
+        self.txtNombre.clear();
+        self.txtPrecio.clear()
+
+    # Actualización mediante HTTP PUT
     def actualizar(self):
-        nombre = self.txt_nombre.text()
-        precio = self.txt_precio.text()
+        nombre = self.txtNombre.text()
+        precio = self.txtPrecio.text()
+        datos = {"nombre": nombre, "precio": float(precio)}
+        endpoint = self.table_name
+        try:
+            r = requests.put(f"{self.base_url}/{endpoint}", json=datos, timeout=2)
+            if r.status_code == 200: self.loadData()
+        except:
+            self.guardar_offline(endpoint, "PUT", datos)
+            QMessageBox.information(self, "Offline", "Actualización en cola de sincronización.")
 
-        query = f"UPDATE {self.table_name} SET precio = ? WHERE nombre = ?"
-        self.cursor.execute(query, (precio, nombre))
-        self.conexion.commit()
+        self.txtNombre.clear();
+        self.txtPrecio.clear()
 
-        self.load_data()
-        """
-        Actualizar en la BD.
-        Se sobrescribe en la clase hija.
-        """
-        print("Actualizar (padre): redefinir en la clase hija.")
-
+    # Eliminación mediante HTTP DELETE
     def eliminar(self):
-        nombre = self.txt_nombre.text()
+        nombre = self.txtNombre.text()
+        endpoint = self.table_name
+        try:
+            r = requests.delete(f"{self.base_url}/{endpoint}/{nombre}", timeout=2)
+            if r.status_code == 200: self.loadData()
+        except:
+            self.guardar_offline(endpoint, "DELETE", {"nombre": nombre})
+            QMessageBox.information(self, "Offline", "Eliminación en cola de sincronización.")
+        self.txtNombre.clear()
 
-        query = f"DELETE FROM {self.table_name} WHERE nombre = ?"
-        self.cursor.execute(query, (nombre,))
-        self.conexion.commit()
-
-        self.load_data()
-        """
-        Eliminar en la BD.
-        Se sobrescribe en la clase hija.
-        """
-        print("Eliminar (padre): redefinir en la clase hija.")
+    # Serialización de la operación en JSON local para persistencia temporal
+    def guardar_offline(self, endpoint, metodo, datos):
+        registro = {"tabla": endpoint, "metodo": metodo, "datos": datos, "fecha": str(datetime.now())}
+        with open("pendientes.json", "a") as f:
+            json.dump(registro, f)
+            f.write("\n")
