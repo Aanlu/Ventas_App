@@ -10,7 +10,7 @@ class LoginWindow(QWidget):
         self.resize(300, 200)
 
         # Endpoint del servicio de identidad
-        self.api_url = "https://059dfecdc33f.ngrok-free.app/api/Login"
+        self.api_url = "https://54d872b30336.ngrok-free.app/api/Login"
 
         # Elementos de UI
         self.usuario_Label = QLabel("Usuario:", self)

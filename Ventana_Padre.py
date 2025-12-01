@@ -20,7 +20,7 @@ class CrudPadre(QWidget):
         self.setGeometry(200, 200, 600, 400)
 
         # Configuración del endpoint remoto (Ngrok)
-        self.base_url = "https://059dfecdc33f.ngrok-free.app/api"
+        self.base_url = "https://54d872b30336.ngrok-free.app/api"
 
         self.initUI()
         self.loadData()

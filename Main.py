@@ -49,7 +49,7 @@ class HiloSocket(QThread):
 class HiloSync(QThread):
     def run(self):
         # Endpoint base del Web Service (Túnel Ngrok)
-        base_url = "https://059dfecdc33f.ngrok-free.app/api"
+        base_url = "https://54d872b30336.ngrok-free.app/api"
 
         while True:
             time.sleep(10)  # Ciclo de verificación (polling)
@@ -149,11 +149,11 @@ class Controlador:
     # Manejador de eventos del Socket: Actualiza la vista específica que fue modificada
     # Garantiza la consistencia de datos entre múltiples clientes conectados
     def procesar_actualizacion(self, mensaje):
-        if "FRUTAS" in mensaje:
+        if "UPDATE_FRUTAS" in mensaje:
             self.frut.loadData()
-        elif "CARNES" in mensaje:
+        elif "UPDATE_CARNES" in mensaje:
             self.carn.loadData()
-        elif "VERDURAS" in mensaje:
+        elif "UPDATE_VERDURAS" in mensaje:
             self.verd.loadData()
 
 
